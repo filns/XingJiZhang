@@ -45,6 +45,7 @@ function loadSecrets() {
   const searchPaths = [path.join(__dirname, 'secrets.json')];
   if (app.isPackaged) {
     searchPaths.push(path.join(process.resourcesPath, 'secrets.json'));
+    searchPaths.push(path.join(app.getPath('userData'), 'secrets.json'));
   }
   for (const p of searchPaths) {
     if (fs.existsSync(p)) {
