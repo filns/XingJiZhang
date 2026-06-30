@@ -128,14 +128,80 @@ npm run build
 **Q: 数据安全？**
 API 凭证存储在你电脑本地数据库（`%APPDATA%/xingjizhang/accounting.db`），OCR 图片通过 HTTPS 加密传输至百度服务器识别，不会上传至任何第三方服务器。
 
-#### 方式二：本地 PaddleOCR / EasyOCR
+#### 方式二：本地 EasyOCR（离线识别）
+
+本地 EasyOCR 是**完全离线**的识别方案，无需注册账号、无需联网、无调用次数限制。但首次启动会自动下载识别模型（约 100 MB），识别速度取决于电脑性能。
+
+##### 1. 安装 Python
+
+确保已安装 Python 3.8 或更高版本：
+- 打开命令提示符（Win+R，输入 `cmd`）
+- 输入 `python --version` 确认版本号
+- 如未安装，前往 [python.org](https://www.python.org/downloads/) 下载安装包
+- 安装时务必勾选 **「Add Python to PATH」**
+
+##### 2. 安装依赖包
 
 ```bash
 pip install easyocr pillow numpy
+```
+
+> 国内用户可加镜像加速：`pip install easyocr pillow numpy -i https://pypi.tuna.tsinghua.edu.cn/simple`
+
+##### 3. 启动 OCR 本地服务
+
+在项目目录下运行：
+
+```bash
+cd XingJiZhang
 python ocr_server.py --port 8868
 ```
 
-启动后在 OCR 页面选择「PaddleOCR 本地」或「EasyOCR 本地」引擎即可离线识别，无需联网。
+首次运行会自动下载 EasyOCR 的中文识别模型（Chinese + English），大小约 100 MB，请耐心等待。下载完成后显示：
+
+```
+[OCR Server] Engine ready.
+[OCR Server] Listening on http://127.0.0.1:8868
+[OCR Server] Press Ctrl+C to stop.
+```
+
+##### 4. 在星记账中使用
+
+1. 保持命令行窗口运行（不要关闭）
+2. 打开星记账，切换到「OCR 导入」标签页
+3. 在识别引擎中选择 **「PaddleOCR (本地)」**
+4. 选择图片后点击「开始识别」
+
+##### 高级选项
+
+| 参数 | 说明 |
+|------|------|
+| `--port 8868` | 自定义端口号（默认 8868） |
+| `--gpu` | 启用 GPU 加速（需 CUDA 环境） |
+
+```bash
+# GPU 加速模式（识别速度更快）
+python ocr_server.py --port 8868 --gpu
+```
+
+##### 常见问题
+
+**Q: 首次启动报错或长时间无响应？**
+首次运行需要下载模型，视网络情况需要 2-10 分钟。下载进度会显示在命令行中。如网络不畅，可手动下载模型文件放到 `C:\Users\<用户名>\.EasyOCR\model\` 目录。
+
+**Q: 提示无法连接本地服务？**
+- 确认命令行窗口仍在运行，未被关闭
+- 确认端口 8868 未被其他程序占用
+- 尝试重启本地服务：`Ctrl+C` 停止后重新运行 `python ocr_server.py`
+
+**Q: 识别速度慢？**
+EasyOCR 纯 CPU 模式下识别一张图片通常需要 3-10 秒。如需加速：
+- 使用 CUDA GPU + `--gpu` 参数（需显卡支持）
+- 将图片裁剪到只包含票据区域，减小识别范围
+- 优先使用百度云 OCR，标准版每日 500 次免费
+
+**Q: 支持多语言吗？**
+当前配置为简体中文 + 英文（`['ch_sim', 'en']`）。如需其他语言，可编辑 `ocr_server.py` 第 117 行修改语言列表。完整语言列表参见 [EasyOCR 文档](https://github.com/JaidedAI/EasyOCR)。
 
 ## 项目结构
 
