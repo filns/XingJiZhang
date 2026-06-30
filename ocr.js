@@ -749,17 +749,33 @@ if (require.main === module) {
     console.log('     date:', info5.date, '(expected 2024-03-15)');
     console.log('     amount:', info5.amount, '(expected 88)');
 
-    // Test 5: Credential validation (no real API call)
-    console.log('\n5. Credential validation...');
-    setSetting('app_id', 'YOUR_BAIDU_APP_ID');
-    setSetting('api_key', 'YOUR_BAIDU_API_KEY');
-    setSetting('secret_key', 'YOUR_BAIDU_SECRET_KEY');
+    // Test 5: Get token + OCR with real credentials (from secrets.json if available)
+    console.log('\n5. Token fetch + OCR test...');
+    let secrets = {};
+    try {
+      const secretsPath = path.join(__dirname, 'secrets.json');
+      if (fs.existsSync(secretsPath)) {
+        secrets = JSON.parse(fs.readFileSync(secretsPath, 'utf-8'));
+      }
+    } catch (e) { /* ignore */ }
+    const ocrCfg = (secrets && secrets.baidu_ocr) ? secrets.baidu_ocr : {};
+    setSetting('app_id', ocrCfg.app_id || '');
+    setSetting('api_key', ocrCfg.api_key || '');
+    setSetting('secret_key', ocrCfg.secret_key || '');
 
     try {
-      await getAccessToken();
-      console.log('   ERROR: Should have failed with placeholder credentials');
+      if (!ocrCfg.app_id) throw new Error('未配置 secrets.json，跳过 OCR 测试');
+      const token = await getAccessToken();
+      console.log('   Token obtained:', token.substring(0, 20) + '...');
+
+      // Minimal 1x1 PNG as test image (valid base64)
+      const testPngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      const result = await recognizeReceipt(testPngBase64);
+      console.log('   OCR call succeeded!');
+      console.log('   rawText length:', result.rawText.length);
+      console.log('   words_result count:', result.wordsResult.words_result ? result.wordsResult.words_result.length : 0);
     } catch (err) {
-      console.log('   Correctly rejected placeholder credentials:', err.message);
+      console.log('   OCR call error:', err.message);
     }
 
     // Clean up test database
