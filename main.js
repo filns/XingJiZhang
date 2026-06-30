@@ -41,11 +41,27 @@ function createWindow() {
 
 // ─── Seed API Credentials ────────────────────────────────────────────────────────
 
+function loadSecrets() {
+  const searchPaths = [path.join(__dirname, 'secrets.json')];
+  if (app.isPackaged) {
+    searchPaths.push(path.join(process.resourcesPath, 'secrets.json'));
+  }
+  for (const p of searchPaths) {
+    if (fs.existsSync(p)) {
+      try { return JSON.parse(fs.readFileSync(p, 'utf-8')); }
+      catch (e) { console.error('Failed to parse secrets.json:', e.message); }
+    }
+  }
+  return null;
+}
+
 function seedApiCredentials() {
   if (!database.getSetting('app_id')) {
-    database.setSetting('app_id', 'YOUR_BAIDU_APP_ID');
-    database.setSetting('api_key', 'YOUR_BAIDU_API_KEY');
-    database.setSetting('secret_key', 'YOUR_BAIDU_SECRET_KEY');
+    const secrets = loadSecrets();
+    const ocr = (secrets && secrets.baidu_ocr) ? secrets.baidu_ocr : {};
+    database.setSetting('app_id', ocr.app_id || '');
+    database.setSetting('api_key', ocr.api_key || '');
+    database.setSetting('secret_key', ocr.secret_key || '');
   }
 }
 

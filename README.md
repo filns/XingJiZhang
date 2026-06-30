@@ -36,7 +36,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/YOUR_USERNAME/XingJiZhang.git
+git clone https://github.com/filns/XingJiZhang.git
 cd XingJiZhang
 
 # 安装依赖
@@ -50,6 +50,8 @@ npm run build
 ```
 
 ### 配置 OCR (可选)
+
+> **开发者快捷方式**：如果你已拥有百度 OCR API 密钥，可将 `secrets.example.json` 复制为 `secrets.json` 并填入真实凭证，应用启动时会自动读取。此文件已加入 `.gitignore`，不会被提交到仓库。详见 [API 密钥安全说明](#api-密钥安全说明)。
 
 #### 方式一：百度云 OCR
 
@@ -238,6 +240,36 @@ npm run build
 ## License
 
 MIT
+
+## API 密钥安全说明
+
+本项目使用 `secrets.json` 管理百度 OCR API 凭证，**该文件已加入 `.gitignore`，不会被提交到 Git 仓库**。
+
+### 本地开发
+
+1. 复制模板文件：`cp secrets.example.json secrets.json`
+2. 编辑 `secrets.json`，填入你的百度 OCR 凭证：
+   ```json
+   {
+     "baidu_ocr": {
+       "app_id": "你的AppID",
+       "api_key": "你的APIKey",
+       "secret_key": "你的SecretKey"
+     }
+   }
+   ```
+3. 启动应用，凭证将自动写入本地数据库，OCR 即刻可用
+
+### 发布构建
+
+构建 EXE 时，`secrets.json` 不会被自动打包（除非你手动将其放入 `resources/` 目录）。建议让用户通过应用内 **设置页面** 自行配置百度 OCR 凭证，或参考上方 OCR 配置教程。
+
+### 为什么不放在代码里？
+
+硬编码 API 密钥有严重安全风险：
+- 任何能访问仓库的人都能看到密钥
+- 密钥泄露可能导致 API 配额被盗用
+- 无法为不同开发者/环境使用不同密钥
 
 ## 免责声明
 
