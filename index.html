@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <title>星记账</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!-- TAB BAR                                                              -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div class="tab-bar">
+    <button class="tab active" data-tab="tab-add">📝 记账</button>
+    <button class="tab" data-tab="tab-list">📋 流水</button>
+    <button class="tab" data-tab="tab-charts">📊 图表</button>
+    <button class="tab" data-tab="tab-ocr">📷 OCR 导入</button>
+    <button class="tab tab-settings" id="btn-settings" title="设置">⚙</button>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!-- TAB 1: 记账 (id="tab-add")                                           -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div class="tab-content active" id="tab-add">
+    <div class="content-layout">
+
+      <!-- Main area (left) -->
+      <div class="main-area">
+        <!-- Expenditure / Income toggle -->
+        <div class="type-toggle" id="type-toggle">
+          <button class="type-btn expense active" data-type="0">支出</button>
+          <button class="type-btn income" data-type="1">收入</button>
+        </div>
+
+        <!-- Large amount input -->
+        <div class="amount-wrapper">
+          <span class="currency-prefix">¥</span>
+          <input type="number" class="amount-input" id="input-amount" placeholder="0.00" step="0.01" min="0">
+        </div>
+
+        <!-- Category chips -->
+        <div class="chips-label">分类</div>
+        <div class="category-chips" id="category-chips">
+          <!-- Populated dynamically by app.js -->
+        </div>
+
+        <!-- Account select -->
+        <div class="form-row">
+          <label class="form-label" for="select-account">账户</label>
+          <select class="form-select" id="select-account">
+            <!-- Populated dynamically by app.js -->
+            <option value="">选择账户</option>
+          </select>
+        </div>
+
+        <!-- Note + Date row -->
+        <div class="form-row form-row-split">
+          <input type="text" class="form-input" id="input-note" placeholder="备注 (选填)">
+          <input type="datetime-local" class="form-input" id="input-date" step="1">
+        </div>
+
+        <!-- Save button -->
+        <button class="btn-primary expense-btn" id="btn-save">记一笔</button>
+      </div>
+
+      <!-- Side panel (right) -->
+      <div class="side-panel" id="side-summary">
+        <div class="summary-card">
+          <div class="summary-card-header">
+            <span>📅</span>
+            <span>今日支出</span>
+          </div>
+          <div class="summary-card-amount" id="summary-today">¥0.00</div>
+          <div class="summary-card-sub" id="summary-today-count">0 笔</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-card-header">
+            <span>📊</span>
+            <span>本月</span>
+          </div>
+          <div class="summary-card-row">
+            <span class="summary-label">支出</span>
+            <span class="summary-value expense-color" id="summary-month-expense">¥0.00</span>
+          </div>
+          <div class="summary-card-row">
+            <span class="summary-label">收入</span>
+            <span class="summary-value income-color" id="summary-month-income">¥0.00</span>
+          </div>
+          <div class="summary-card-row">
+            <span class="summary-label">结余</span>
+            <span class="summary-value" id="summary-month-balance">¥0.00</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!-- TAB 2: 流水 (id="tab-list")                                          -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div class="tab-content" id="tab-list">
+
+    <!-- Filter bar: row 1 — search + type + time chips -->
+    <div class="filter-bar">
+      <input type="text" class="search-input" id="search-note" placeholder="🔍 搜索备注...">
+
+      <div class="filter-chips" id="filter-type-chips">
+        <button class="filter-chip active" data-filter="type" data-value="">全部</button>
+        <button class="filter-chip" data-filter="type" data-value="0">支出</button>
+        <button class="filter-chip" data-filter="type" data-value="1">收入</button>
+      </div>
+
+      <button class="btn-small" id="btn-batch-delete-toggle">☐ 批量删除</button>
+
+      <div class="filter-chips" id="filter-time-chips">
+        <button class="filter-chip active" data-filter="time" data-value="all">全部时间</button>
+        <button class="filter-chip" data-filter="time" data-value="month">本月</button>
+      </div>
+    </div>
+
+    <!-- Filter bar: row 2 — account & category selects -->
+    <div class="filter-bar filter-bar-secondary">
+      <select class="form-select filter-select" id="filter-account">
+        <option value="">全部账户</option>
+      </select>
+      <select class="form-select filter-select" id="filter-category">
+        <option value="">全部分类</option>
+      </select>
+
+      <div class="list-summary" id="list-summary">
+        共 <strong id="list-summary-count">0</strong> 条记录，
+        合计支出 <strong class="expense-color" id="list-summary-expense">¥0.00</strong>，
+        合计收入 <strong class="income-color" id="list-summary-income">¥0.00</strong>
+      </div>
+    </div>
+
+    <!-- Batch action bar -->
+    <div class="batch-bar" id="batch-bar" style="display:none;">
+      <label class="batch-select-all">
+        <input type="checkbox" id="batch-check-all">
+        <span>全选</span>
+      </label>
+      <span class="batch-count" id="batch-count">已选 0 项</span>
+      <button class="btn-small danger" id="btn-batch-delete-confirm">删除选中</button>
+      <button class="btn-small" id="btn-batch-cancel">取消</button>
+    </div>
+
+    <!-- Transaction list header -->
+    <div class="list-header">
+      <div class="col-check" id="col-check-header" style="display:none;"></div>
+      <div class="col-date">日期</div>
+      <div class="col-cat">分类</div>
+      <div class="col-note">备注</div>
+      <div class="col-account">账户</div>
+      <div class="col-amount">金额</div>
+      <div class="col-actions" id="col-actions-header">操作</div>
+    </div>
+
+    <!-- Transaction list body -->
+    <div class="list-body" id="transaction-list">
+      <!-- Populated dynamically by app.js -->
+      <div class="list-empty">暂无记录</div>
+    </div>
+
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!-- TAB 3: 图表 (id="tab-charts")                                         -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div class="tab-content" id="tab-charts">
+
+    <!-- Time range chips + label -->
+    <div class="chart-controls">
+      <div class="filter-chips" id="chart-range-chips">
+        <button class="filter-chip active" data-range="this">本月</button>
+        <button class="filter-chip" data-range="last">上月</button>
+        <button class="filter-chip" data-range="3mon">近3月</button>
+      </div>
+      <div class="chart-month-label" id="chart-month-label">2026年6月</div>
+    </div>
+
+    <!-- 2x2 Chart grid -->
+    <div class="chart-grid">
+      <!-- Pie chart: category breakdown -->
+      <div class="chart-box">
+        <div class="chart-box-title">分类支出占比</div>
+        <div class="chart-box-body">
+          <canvas id="chart-pie"></canvas>
+        </div>
+      </div>
+
+      <!-- Trend chart: daily expense/income -->
+      <div class="chart-box">
+        <div class="chart-box-title">每日收支趋势</div>
+        <div class="chart-box-body">
+          <canvas id="chart-trend"></canvas>
+        </div>
+      </div>
+
+      <!-- Ranking list: top categories -->
+      <div class="chart-box">
+        <div class="chart-box-title">分类排行</div>
+        <div class="chart-box-body">
+          <div class="chart-ranking" id="chart-ranking">
+            <!-- Populated dynamically by app.js -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Compare chart: income vs expense -->
+      <div class="chart-box">
+        <div class="chart-box-title">收入 vs 支出</div>
+        <div class="chart-box-body">
+          <canvas id="chart-compare"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!-- TAB 4: OCR 导入 (id="tab-ocr")                                        -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div class="tab-content" id="tab-ocr">
+
+    <div class="ocr-container">
+      <!-- Drop zone -->
+      <div class="ocr-dropzone" id="ocr-dropzone">
+        <div class="ocr-dropzone-icon">📷</div>
+        <div class="ocr-dropzone-text">点击选择图片或拖拽图片到此处</div>
+        <div class="ocr-dropzone-hint">支持 JPG、PNG、BMP、WebP、GIF 格式</div>
+      </div>
+
+      <!-- Preview -->
+      <div class="ocr-preview-box" id="ocr-preview" style="display:none;">
+        <img id="ocr-preview-img" src="" alt="OCR Preview">
+      </div>
+
+      <!-- Controls -->
+      <div class="ocr-controls">
+        <div class="ocr-engine-select">
+          <span class="ocr-engine-label">识别引擎：</span>
+          <label class="ocr-engine-option">
+            <input type="radio" name="ocr-engine" value="baidu" checked>
+            <span>百度 OCR (云端)</span>
+          </label>
+          <label class="ocr-engine-option">
+            <input type="radio" name="ocr-engine" value="paddle">
+            <span>PaddleOCR (本地)</span>
+            <span class="ocr-paddle-status" id="ocr-paddle-status"></span>
+          </label>
+        </div>
+        <label class="ocr-high-precision" id="ocr-high-precision-label">
+          <input type="checkbox" id="ocr-high-precision">
+          <span>高精度 (仅百度生效)</span>
+        </label>
+        <button class="btn-primary" id="btn-ocr-run" style="display:none;">开始识别</button>
+        <button class="btn-small" id="btn-ocr-clear" style="display:none;">清除</button>
+      </div>
+
+      <!-- Result box -->
+      <div class="ocr-result-box" id="ocr-result" style="display:none;">
+        <div class="ocr-result-header">识别结果</div>
+        <div class="ocr-result-fields">
+          <div class="ocr-field">
+            <span class="ocr-field-label">金额</span>
+            <span class="ocr-field-value" id="ocr-amount">—</span>
+          </div>
+          <div class="ocr-field">
+            <span class="ocr-field-label">商户</span>
+            <span class="ocr-field-value" id="ocr-merchant">—</span>
+          </div>
+          <div class="ocr-field">
+            <span class="ocr-field-label">日期</span>
+            <span class="ocr-field-value" id="ocr-date">—</span>
+          </div>
+        </div>
+        <div class="ocr-result-raw" id="ocr-raw-text"></div>
+        <button class="btn-primary" id="btn-ocr-apply" style="display:none;">应用到记账表单</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!-- SETTINGS MODAL (id="settings-modal")                                 -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-overlay" style="display:none;">
+    <div class="modal" id="settings-modal">
+
+      <div class="modal-header">
+        <span class="modal-title">⚙ 设置</span>
+        <button class="modal-close" id="modal-close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Accounts management -->
+        <div class="settings-section" id="settings-accounts">
+          <div class="settings-section-header">
+            <h3>账户管理</h3>
+            <button class="btn-small" id="btn-add-account">+ 添加账户</button>
+          </div>
+          <div class="settings-list" id="settings-account-list">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Categories management -->
+        <div class="settings-section" id="settings-categories">
+          <div class="settings-section-header">
+            <h3>分类管理</h3>
+            <button class="btn-small" id="btn-add-category">+ 添加分类</button>
+          </div>
+          <div class="settings-list" id="settings-category-list">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- API config -->
+        <div class="settings-section">
+          <h3>百度 OCR API 配置</h3>
+          <div class="settings-form-row">
+            <label class="settings-label" for="setting-app-id">App ID</label>
+            <input type="text" class="form-input settings-input" id="setting-app-id" placeholder="百度 AI AppID">
+          </div>
+          <div class="settings-form-row">
+            <label class="settings-label" for="setting-api-key">API Key</label>
+            <input type="text" class="form-input settings-input" id="setting-api-key" placeholder="百度 AI API Key">
+          </div>
+          <div class="settings-form-row">
+            <label class="settings-label" for="setting-secret-key">Secret Key</label>
+            <input type="password" class="form-input settings-input" id="setting-secret-key" placeholder="百度 AI Secret Key">
+          </div>
+          <button class="btn-small" id="btn-save-api-config">保存 API 配置</button>
+        </div>
+
+        <!-- Background settings -->
+        <div class="settings-section">
+          <h3>背景设置</h3>
+          <div class="settings-form-row">
+            <label class="settings-label" for="setting-bg-type">背景类型</label>
+            <select class="form-select settings-input" id="setting-bg-type">
+              <option value="color">纯色</option>
+              <option value="image">图片</option>
+            </select>
+          </div>
+          <div class="settings-form-row" id="setting-bg-color-row">
+            <label class="settings-label" for="setting-bg-color">颜色</label>
+            <input type="color" class="form-input settings-input" id="setting-bg-color" value="#0f0f0f">
+          </div>
+          <div class="settings-form-row" id="setting-bg-image-row" style="display:none;">
+            <label class="settings-label">背景图片</label>
+            <button class="btn-small" id="btn-select-bg-image">选择图片</button>
+            <span id="setting-bg-image-name" style="color:#888;font-size:13px;margin-left:8px;"></span>
+          </div>
+          <button class="btn-small" id="btn-save-background">保存背景设置</button>
+        </div>
+
+        <!-- Export -->
+        <div class="settings-section">
+          <h3>数据导出</h3>
+          <div class="settings-export-buttons">
+            <button class="btn-small" id="btn-export-csv">📄 导出 CSV</button>
+            <button class="btn-small" id="btn-export-excel">📊 导出 Excel</button>
+          </div>
+        </div>
+
+        <!-- Import -->
+        <div class="settings-section">
+          <h3>数据导入</h3>
+          <div class="settings-export-buttons">
+            <button class="btn-small" id="btn-import-csv">📥 导入 CSV</button>
+            <button class="btn-small" id="btn-import-xlsx">📥 导入 Excel</button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!-- EDIT MODAL (id="edit-modal")                                         -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="edit-overlay" style="display:none;">
+    <div class="modal modal-edit" id="edit-modal">
+      <div class="modal-header">
+        <span class="modal-title">编辑记录</span>
+        <button class="modal-close" id="edit-close">&times;</button>
+      </div>
+      <div class="modal-body" id="edit-body">
+        <!-- Populated dynamically by app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!-- IMPORT MODAL (id="import-modal")                                      -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="import-overlay" style="display:none;">
+    <div class="modal modal-wide" id="import-modal">
+      <div class="modal-header">
+        <span class="modal-title">导入预览</span>
+        <button class="modal-close" id="import-close">&times;</button>
+      </div>
+      <div class="modal-body" id="import-body">
+        <!-- Populated dynamically by app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!-- SCRIPTS                                                              -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>

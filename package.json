@@ -1,0 +1,43 @@
+{
+  "name": "xingjizhang",
+  "version": "1.0.0",
+  "description": "星记账 (XingJiZhang) — 轻量级个人记账桌面应用，支持 OCR 识别、微信账单导入、图表分析",
+  "author": "XingJiZhang",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.xingjizhang.app",
+    "productName": "XingJiZhang",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "extraResources": [
+      {
+        "from": "assets/icon.ico",
+        "to": "icon.ico"
+      }
+    ],
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "XingJiZhang ${version}.exe"
+    }
+  },
+  "devDependencies": {
+    "electron": "25.0.1",
+    "electron-builder": "^24.0.0"
+  },
+  "dependencies": {
+    "baidu-aip-sdk": "^4.16.0",
+    "chart.js": "^4.4.0",
+    "sql.js": "^1.14.1",
+    "xlsx": "^0.18.0"
+  }
+}
