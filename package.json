@@ -1,6 +1,6 @@
 {
   "name": "xingjizhang",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "星记账 (XingJiZhang) — 轻量级个人记账桌面应用，支持 OCR 识别、微信账单导入、图表分析",
   "author": "XingJiZhang",
   "main": "main.js",
@@ -10,7 +10,7 @@
   },
   "build": {
     "appId": "com.xingjizhang.app",
-    "productName": "XingJiZhang",
+    "productName": "星记账",
     "directories": {
       "output": "dist"
     },
@@ -27,7 +27,7 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "artifactName": "XingJiZhang ${version}.exe"
+      "artifactName": "星记账 ${version}.exe"
     }
   },
   "devDependencies": {
