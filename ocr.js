@@ -328,7 +328,7 @@ function parseDateLine(line) {
       } else {
         datePart = normalised;
       }
-      const timeMatch2 = line.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      const timeMatch2 = line.match(/(\d{1,2})[:：](\d{2})(?:[:：](\d{2}))?/);
       if (timeMatch2) {
         const h = String(timeMatch2[1]).padStart(2, '0');
         return `${datePart} ${h}:${timeMatch2[2]}:${timeMatch2[3] || '00'}`;
@@ -357,7 +357,7 @@ function parseDateLine(line) {
         if (candidate > now) year--;
         const datePart = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         // Check for time after the date
-        const timeMatch = line.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+        const timeMatch = line.match(/(\d{1,2})[:：](\d{2})(?:[:：](\d{2}))?/);
         if (timeMatch) {
           const h = String(timeMatch[1]).padStart(2, '0');
           const m = timeMatch[2];
@@ -425,7 +425,7 @@ function matchAmountLine(line) {
  * Check if a line is a bare time (HH:MM or HH:MM:SS), not part of a date.
  */
 function isTimeOnlyLine(line) {
-  return /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.test(line);
+  return /^(\d{1,2})[:：](\d{2})(?:[:：](\d{2}))?$/.test(line);
 }
 
 /** Lines that should never be treated as merchant names */
@@ -518,7 +518,7 @@ function extractTransactions(rawText) {
 
     // If date has no time, check if the very next line is a bare time
     if (date && !date.includes(' ') && dateLineIdx >= 0 && dateLineIdx + 1 < lines.length) {
-      const timeOnlyMatch = lines[dateLineIdx + 1].match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      const timeOnlyMatch = lines[dateLineIdx + 1].match(/^(\d{1,2})[:：](\d{2})(?:[:：](\d{2}))?$/);
       if (timeOnlyMatch) {
         const h = String(timeOnlyMatch[1]).padStart(2, '0');
         date = `${date} ${h}:${timeOnlyMatch[2]}:${timeOnlyMatch[3] || '00'}`;
@@ -539,7 +539,7 @@ function extractTransactions(rawText) {
 
         // Candidate is date-only. Check if the next line (before amount) is a bare time
         if (j + 1 < i) {
-          const timeOnlyMatch = lines[j + 1].match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+          const timeOnlyMatch = lines[j + 1].match(/^(\d{1,2})[:：](\d{2})(?:[:：](\d{2}))?$/);
           if (timeOnlyMatch) {
             const h = String(timeOnlyMatch[1]).padStart(2, '0');
             date = `${candidateDate} ${h}:${timeOnlyMatch[2]}:${timeOnlyMatch[3] || '00'}`;
@@ -675,7 +675,7 @@ function extractTransactionInfo(rawText) {
   }
   // If date has no time, check the next line for a bare time
   if (date && !date.includes(' ') && dateIdx >= 0 && dateIdx + 1 < lines.length) {
-    const timeOnlyMatch = lines[dateIdx + 1].match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    const timeOnlyMatch = lines[dateIdx + 1].match(/^(\d{1,2})[:：](\d{2})(?:[:：](\d{2}))?$/);
     if (timeOnlyMatch) {
       const h = String(timeOnlyMatch[1]).padStart(2, '0');
       date = `${date} ${h}:${timeOnlyMatch[2]}:${timeOnlyMatch[3] || '00'}`;
