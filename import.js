@@ -274,11 +274,9 @@ function parseFile(filePath) {
     const note = row[colMap.note] || '';
     let date = parseDate(row[colMap.date] || '');
 
-    // Ensure date has time component
+    // Use 12:00 as neutral default when time is unknown
     if (date && !date.includes(' ')) {
-      const now = new Date();
-      const pad = n => String(n).padStart(2, '0');
-      date = `${date} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      date = `${date} 12:00:00`;
     }
 
     const matchedId = findCategoryId(categoryName);
