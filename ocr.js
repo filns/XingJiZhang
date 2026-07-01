@@ -572,12 +572,11 @@ function extractTransactions(rawText) {
       }
     }
 
-    // Ensure date has time component
+    // Ensure date has time component. Use 12:00 as neutral default (NOT current
+    // system time — the time OCR runs has nothing to do with the transaction time).
     let finalDate = date || new Date().toISOString().slice(0, 10);
     if (finalDate && !finalDate.includes(' ')) {
-      const now = new Date();
-      const pad = n => String(n).padStart(2, '0');
-      finalDate = `${finalDate} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      finalDate = `${finalDate} 12:00:00`;
     }
 
     const merchantText = merchant || '未知商户';
@@ -683,11 +682,9 @@ function extractTransactionInfo(rawText) {
     }
   }
   if (!date) date = new Date().toISOString().slice(0, 10);
-  // Ensure date has time
+  // Use 12:00 as neutral default when time is unknown
   if (date && !date.includes(' ')) {
-    const now = new Date();
-    const pad = n => String(n).padStart(2, '0');
-    date = `${date} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    date = `${date} 12:00:00`;
   }
 
   const category_id = amount ? autoCategorize(merchant || '', amount < 0 ? 0 : 1) : null;
