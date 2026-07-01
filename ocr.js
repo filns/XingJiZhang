@@ -400,21 +400,21 @@ function matchAmountLine(line) {
     }
   }
 
-  // Expense keywords
-  m = line.match(/(?:支出|消费|付款|扣款|扣费|支取)\s*[¥￥]?\s*(\d+(?:\.\d{1,2})?)/);
+  // Expense keywords (with optional sign between keyword and amount, e.g. "支出-14.00")
+  m = line.match(/(?:支出|消费|付款|扣款|扣费|支取)\s*[¥￥]?\s*([+-]?\d+(?:\.\d{1,2})?)/);
   if (m) {
     const amount = parseFloat(m[1]);
-    if (isPlausibleAmount(amount)) {
-      return { amount, type: 0 };
+    if (isPlausibleAmount(Math.abs(amount))) {
+      return { amount: Math.abs(amount), type: 0 };
     }
   }
 
-  // Income keywords
-  m = line.match(/(?:收入|收款|退款|入账|存入)\s*[¥￥]?\s*(\d+(?:\.\d{1,2})?)/);
+  // Income keywords (with optional sign between keyword and amount)
+  m = line.match(/(?:收入|收款|退款|入账|存入)\s*[¥￥]?\s*([+-]?\d+(?:\.\d{1,2})?)/);
   if (m) {
     const amount = parseFloat(m[1]);
-    if (isPlausibleAmount(amount)) {
-      return { amount, type: 1 };
+    if (isPlausibleAmount(Math.abs(amount))) {
+      return { amount: Math.abs(amount), type: 1 };
     }
   }
 
@@ -426,6 +426,58 @@ function matchAmountLine(line) {
  */
 function isTimeOnlyLine(line) {
   return /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.test(line);
+}
+
+/** Lines that should never be treated as merchant names */
+const MERCHANT_SKIP = /^(支出|收入|消费|付款|收款|退款|扣费|扣款|支取|入账|存入|转账|提现|充值)$/;
+
+/** Pick the best merchant name from a candidate line */
+function findMerchant(lines, amountIdx) {
+  // Look above first (most common layout)
+  for (let j = amountIdx - 1; j >= Math.max(0, amountIdx - 3); j--) {
+    const candidate = lines[j];
+    if (!candidate) continue;
+    if (matchAmountLine(candidate)) continue;
+    if (parseDateLine(candidate)) continue;
+    if (isTimeOnlyLine(candidate)) continue;
+    if (MERCHANT_SKIP.test(candidate)) continue;
+    if (candidate.length > 30) continue;
+    return candidate;
+  }
+  // Look below if nothing found above
+  for (let j = amountIdx + 1; j < Math.min(lines.length, amountIdx + 3); j++) {
+    const candidate = lines[j];
+    if (!candidate) continue;
+    if (matchAmountLine(candidate)) continue;
+    if (parseDateLine(candidate)) continue;
+    if (isTimeOnlyLine(candidate)) continue;
+    if (MERCHANT_SKIP.test(candidate)) continue;
+    if (candidate.length > 30) continue;
+    return candidate;
+  }
+  // Fallback: extract from the same line (single-line OCR output)
+  return extractMerchantFromSameLine(lines[amountIdx]);
+}
+
+/** Extract merchant name from a combined single-line OCR result */
+function extractMerchantFromSameLine(line) {
+  if (!line) return null;
+  // Remove date-like substrings
+  let cleaned = line
+    .replace(/\d{4}[-/年]\d{1,2}[-/月]\d{1,2}\s*日?/g, ' ')
+    .replace(/\d{1,2}月\d{1,2}日/g, ' ')
+    .replace(/\d{1,2}[-/]\d{1,2}(?![\d])/g, ' ')
+    .replace(/\d{1,2}:\d{2}(?::\d{2})?/g, ' ')
+    // Remove amount patterns
+    .replace(/[+-]?\d+(?:\.\d{1,2})?/g, ' ')
+    // Remove keywords
+    .replace(/支出|收入|消费|付款|收款|退款|扣费|扣款|支取|入账|存入/g, ' ')
+    // Remove currency symbols
+    .replace(/[¥￥]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (cleaned.length >= 2 && cleaned.length <= 30) return cleaned;
+  return null;
 }
 
 /**
@@ -453,14 +505,8 @@ function extractTransactions(rawText) {
     const { amount, type } = amountInfo;
     if (isNaN(amount) || amount === 0) continue;
 
-    // Merchant: the line immediately before the amount
-    let merchant = null;
-    if (i > 0) {
-      const prevLine = lines[i - 1];
-      if (!matchAmountLine(prevLine) && !parseDateLine(prevLine) && !isTimeOnlyLine(prevLine)) {
-        merchant = prevLine;
-      }
-    }
+    // Merchant: look up to 3 lines above for a plausible name
+    let merchant = findMerchant(lines, i);
 
     // Date: look up to 2 lines after the amount (skip 1 optional line)
     let date = null;
@@ -481,39 +527,34 @@ function extractTransactions(rawText) {
 
     // If no date (or date without time), look above the amount.
     if (!date || !date.includes(' ')) {
-      // Check immediate above: date(+time) at i-1
-      if (i > 0) {
-        const oneBackDate = parseDateLine(lines[i - 1]);
-        if (oneBackDate && (!date || !date.includes(' '))) {
-          date = oneBackDate;
-          if (merchant === lines[i - 1]) merchant = null;
+      for (let j = i - 1; j >= 0; j--) {
+        const candidateDate = parseDateLine(lines[j]);
+        if (!candidateDate) continue;
+
+        // If candidate has time, use it directly (best case)
+        if (candidateDate.includes(' ')) {
+          date = candidateDate;
+          break;
         }
-      }
-      // Check i-2 for date when i-1 is a time-only line
-      if ((!date || !date.includes(' ')) && i >= 2) {
-        const twoBack = lines[i - 2];
-        const prevLine = lines[i - 1];
-        const twoBackDate = parseDateLine(twoBack);
-        if (twoBackDate && isTimeOnlyLine(prevLine)) {
-          const tm = prevLine.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-          date = `${twoBackDate} ${String(tm[1]).padStart(2, '0')}:${tm[2]}:${tm[3] || '00'}`;
+
+        // Candidate is date-only. Check if the next line (before amount) is a bare time
+        if (j + 1 < i) {
+          const timeOnlyMatch = lines[j + 1].match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+          if (timeOnlyMatch) {
+            const h = String(timeOnlyMatch[1]).padStart(2, '0');
+            date = `${candidateDate} ${h}:${timeOnlyMatch[2]}:${timeOnlyMatch[3] || '00'}`;
+            break;
+          }
         }
+
+        // Use date-only as fallback, keep looking for one with time
+        if (!date) date = candidateDate;
       }
-      // Check i-2 for date when i-1 is merchant (date, merchant, amount pattern)
-      if ((!date || !date.includes(' ')) && i >= 2) {
-        const twoBackDate = parseDateLine(lines[i - 2]);
-        if (twoBackDate && merchant && merchant === lines[i - 1]) {
-          date = twoBackDate;
-        }
-      }
-      // Check i-3 for date when i-2,i-1 are time,merchant (date, time, merchant, amount)
-      if ((!date || !date.includes(' ')) && i >= 3) {
-        const threeBackDate = parseDateLine(lines[i - 3]);
-        if (threeBackDate && isTimeOnlyLine(lines[i - 2])) {
-          const tm = lines[i - 2].match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-          date = `${threeBackDate} ${String(tm[1]).padStart(2, '0')}:${tm[2]}:${tm[3] || '00'}`;
-        }
-      }
+    }
+
+    // Last resort: extract date from the same line as the amount
+    if (!date) {
+      date = parseDateLine(line);
     }
 
     // Extra text between amount and date (e.g. "校园", "完美")
@@ -587,16 +628,23 @@ function extractTransactionInfo(rawText) {
     if (amount !== null) break;
   }
   if (amount === null) {
+    // Prefer decimal amounts over integers (date parts like 30 should not beat 14.00)
     let bestAmount = null;
+    let bestDecimalAmount = null;
     for (const line of lines) {
       const numbers = line.match(/\d+(?:\.\d{1,2})?/g);
       if (!numbers) continue;
       for (const n of numbers) {
         const v = parseFloat(n);
-        if (v >= 1 && v <= 100000 && (bestAmount === null || v > bestAmount)) bestAmount = v;
+        if (v < 1 || v > MAX_OCR_AMOUNT) continue;
+        if (String(n).includes('.')) {
+          if (bestDecimalAmount === null || v > bestDecimalAmount) bestDecimalAmount = v;
+        }
+        if (bestAmount === null || v > bestAmount) bestAmount = v;
       }
     }
-    amount = bestAmount;
+    // Prefer the decimal amount, falling back to largest integer
+    amount = bestDecimalAmount !== null ? bestDecimalAmount : bestAmount;
   }
 
   let merchant = null;
