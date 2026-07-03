@@ -87,6 +87,76 @@ function detectImageFormat(buffer) {
   return null;
 }
 
+// ─── Input Validation ────────────────────────────────────────────────────────────
+
+const MAX_AMOUNT = 9999999.99;
+
+function assert(condition, message) {
+  if (!condition) {
+    const err = new Error(message);
+    err.name = 'ValidationError';
+    throw err;
+  }
+}
+
+function validateId(id) {
+  assert(Number.isInteger(id) && id > 0, 'Invalid id: must be a positive integer');
+}
+
+function validateOptionalId(id) {
+  if (id === null || id === undefined) return;
+  assert(Number.isInteger(id) && id > 0, 'Invalid id: must be a positive integer or null');
+}
+
+function validateAmount(amount) {
+  assert(typeof amount === 'number' && !isNaN(amount), 'Amount must be a number');
+  assert(amount > 0 && amount <= MAX_AMOUNT, `Amount must be between 0 and ${MAX_AMOUNT}`);
+}
+
+function validateType(type) {
+  assert(type === 0 || type === 1, 'Type must be 0 (expense) or 1 (income)');
+}
+
+function validateDate(date) {
+  assert(typeof date === 'string' && date.length >= 10, 'Date must be a string');
+  assert(/^\d{4}-\d{2}-\d{2}/.test(date), 'Date must start with YYYY-MM-DD');
+}
+
+function validateNote(note) {
+  if (note === null || note === undefined) return;
+  assert(typeof note === 'string', 'Note must be a string');
+  assert(note.length <= 500, 'Note must not exceed 500 characters');
+}
+
+function validateName(name) {
+  assert(typeof name === 'string' && name.trim().length > 0, 'Name must be a non-empty string');
+  assert(name.length <= 20, 'Name must not exceed 20 characters');
+}
+
+function validateIcon(icon) {
+  assert(typeof icon === 'string' && icon.length > 0, 'Icon must be a non-empty string');
+  assert(icon.length <= 5, 'Icon must not exceed 5 characters');
+}
+
+function validateTransaction(data) {
+  validateAmount(data.amount);
+  validateType(data.type);
+  validateOptionalId(data.category_id);
+  validateOptionalId(data.account_id);
+  validateNote(data.note);
+  validateDate(data.date);
+}
+
+function validateTransactionUpdate(data) {
+  assert(data, 'Update data is required');
+  if (data.amount !== undefined) validateAmount(data.amount);
+  if (data.type !== undefined) validateType(data.type);
+  if (data.category_id !== undefined) validateOptionalId(data.category_id);
+  if (data.account_id !== undefined) validateOptionalId(data.account_id);
+  if (data.note !== undefined) validateNote(data.note);
+  if (data.date !== undefined) validateDate(data.date);
+}
+
 // ─── IPC Handlers ───────────────────────────────────────────────────────────────
 
 function registerIpcHandlers() {
@@ -97,6 +167,11 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('settings:set', (_, key, value) => {
+    const allowedKeys = ['app_id', 'api_key', 'secret_key', 'background_type', 'background_value'];
+    assert(typeof key === 'string' && allowedKeys.includes(key),
+      `Invalid setting key: ${key}`);
+    assert(typeof value === 'string', 'Setting value must be a string');
+    assert(value.length <= 500, 'Setting value must not exceed 500 characters');
     database.setSetting(key, value);
     return true;
   });
@@ -114,6 +189,8 @@ function registerIpcHandlers() {
   // ── CRUD: Transactions ──────────────────────────────────────────────────────
 
   ipcMain.handle('crud:add-transaction', (_, data) => {
+    assert(data, 'Transaction data is required');
+    validateTransaction(data);
     return database.addTransaction(data);
   });
 
@@ -122,11 +199,14 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('crud:update-transaction', (_, id, data) => {
+    validateId(id);
+    validateTransactionUpdate(data);
     database.updateTransaction(id, data);
     return true;
   });
 
   ipcMain.handle('crud:delete-transaction', (_, id) => {
+    validateId(id);
     database.deleteTransaction(id);
     return true;
   });
@@ -138,15 +218,24 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('categories:add', (_, data) => {
+    assert(data, 'Category data is required');
+    validateName(data.name);
+    validateIcon(data.icon);
+    validateType(data.type);
     return database.addCategory(data);
   });
 
   ipcMain.handle('categories:update', (_, id, data) => {
+    validateId(id);
+    assert(data, 'Update data is required');
+    if (data.name !== undefined) validateName(data.name);
+    if (data.icon !== undefined) validateIcon(data.icon);
     database.updateCategory(id, data);
     return true;
   });
 
   ipcMain.handle('categories:delete', (_, id) => {
+    validateId(id);
     database.deleteCategory(id);
     return true;
   });
@@ -158,15 +247,23 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('accounts:add', (_, data) => {
+    assert(data, 'Account data is required');
+    validateName(data.name);
+    validateIcon(data.icon);
     return database.addAccount(data);
   });
 
   ipcMain.handle('accounts:update', (_, id, data) => {
+    validateId(id);
+    assert(data, 'Update data is required');
+    if (data.name !== undefined) validateName(data.name);
+    if (data.icon !== undefined) validateIcon(data.icon);
     database.updateAccount(id, data);
     return true;
   });
 
   ipcMain.handle('accounts:delete', (_, id) => {
+    validateId(id);
     database.deleteAccount(id);
     return true;
   });
