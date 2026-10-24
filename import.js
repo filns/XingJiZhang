@@ -162,6 +162,19 @@ function parseDateTimeString(value) {
   return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
 }
 
+// ─── Dedup Fingerprint ─────────────────────────────────────────────────────
+
+/**
+ * Build a stable unique key for dedup.
+ * WeChat bills carry a 交易单号/商户单号 → prefer that; otherwise fall back
+ * to a composite of date|type|amount|note.
+ */
+function makeUniqueKey({ transactionId, merchantOrderId, date, type, amount, note }) {
+  if (transactionId) return 'wx:' + transactionId;
+  if (merchantOrderId) return 'wx:' + merchantOrderId;
+  return 'gen:' + [date, type, amount, note].join('|');
+}
+
 // ─── WeChat Format Detection ──────────────────────────────────────────────
 
 /** Return true if the header row looks like a WeChat payment bill */
@@ -281,16 +294,18 @@ function parseFile(filePath) {
 
     const matchedId = findCategoryId(categoryName);
     const catId = matchedId || autoCategorize(note + ' ' + categoryName, type);
+    const amountRounded = Math.round(amountResult.amount * 100) / 100;
 
     transactions.push({
       type,
-      amount: Math.round(amountResult.amount * 100) / 100,
+      amount: amountRounded,
       category_name: categoryName,
       account_name: accountName,
       category_id: catId,
       account_id: findAccountId(accountName),
       note,
       date,
+      unique_key: makeUniqueKey({ transactionId: '', merchantOrderId: '', date, type, amount: amountRounded, note }),
     });
   });
 
@@ -365,6 +380,9 @@ function parseWeChatFormat(rawData) {
     const accountId = findAccountId(paymentMethod);
     let accountName = paymentMethod && paymentMethod !== '/' ? paymentMethod : '';
 
+    const amountRounded = Math.round(amount * 100) / 100;
+    const uniqueKey = makeUniqueKey({ transactionId, merchantOrderId, date, type, amount: amountRounded, note });
+
     // Auto-create account if it doesn't exist (for WeChat payment methods)
     if (!accountId && accountName) {
       try {
@@ -374,10 +392,10 @@ function parseWeChatFormat(rawData) {
         const icon = iconMap[accountName] || '💳';
         const newAcct = database.addAccount({ name: accountName, icon, sort_order: 99 });
         transactions.push({
-          type, amount: Math.round(amount * 100) / 100,
+          type, amount: amountRounded,
           category_name: '', account_name: accountName,
           category_id: catId, account_id: newAcct.id,
-          note, date,
+          note, date, unique_key: uniqueKey,
         });
         continue;
       } catch (e) { /* fall through */ }
@@ -385,13 +403,14 @@ function parseWeChatFormat(rawData) {
 
     transactions.push({
       type,
-      amount: Math.round(amount * 100) / 100,
+      amount: amountRounded,
       category_name: merchant,
       account_name: accountName,
       category_id: catId,
       account_id: accountId,
       note,
       date,
+      unique_key: uniqueKey,
     });
   }
 
@@ -405,25 +424,28 @@ function parseWeChatFormat(rawData) {
 function executeImport(transactions) {
   let imported = 0;
   let failed = 0;
+  let skippedDuplicate = 0;
 
   for (const txn of transactions) {
     try {
-      database.addTransaction({
+      const inserted = database.addTransaction({
         type: txn.type,
         amount: txn.amount,
         category_id: txn.category_id,
         account_id: txn.account_id,
         note: txn.note,
         date: txn.date || new Date().toISOString().slice(0, 10),
+        unique_key: txn.unique_key,
       });
-      imported++;
+      if (inserted) imported++;
+      else skippedDuplicate++;
     } catch (err) {
       console.error('import error:', err);
       failed++;
     }
   }
 
-  return { imported, failed };
+  return { imported, failed, skippedDuplicate };
 }
 
 module.exports = { parseFile, executeImport };
