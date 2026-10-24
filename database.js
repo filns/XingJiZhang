@@ -113,6 +113,7 @@ async function initDatabase() {
       account_id INTEGER,
       note TEXT DEFAULT '',
       date TEXT NOT NULL,
+      unique_key TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
       FOREIGN KEY (category_id) REFERENCES categories(id),
@@ -130,6 +131,13 @@ async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id);
     CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id);
   `);
+
+  // Migration: add unique_key column if this is an older DB without it
+  const txColumns = getAllRows('PRAGMA table_info(transactions)');
+  if (!txColumns.some(col => col.name === 'unique_key')) {
+    db.run('ALTER TABLE transactions ADD COLUMN unique_key TEXT');
+  }
+  db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_unique_key ON transactions(unique_key) WHERE unique_key IS NOT NULL');
 
   // Seed data if tables are empty
   seedIfEmpty();
@@ -236,17 +244,23 @@ function setSetting(key, value) {
 
 // ─── Transactions ────────────────────────────────────────────────────────────
 
-function addTransaction({ type, amount, category_id, account_id, note, date }) {
+function addTransaction({ type, amount, category_id, account_id, note, date, unique_key }) {
+  if (unique_key) {
+    const existing = getRow('SELECT id FROM transactions WHERE unique_key = ?', [unique_key]);
+    if (existing) return null;
+  }
+
   db.run(`
-    INSERT INTO transactions (type, amount, category_id, account_id, note, date)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO transactions (type, amount, category_id, account_id, note, date, unique_key)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `, [
     type,
     amount,
     category_id != null ? category_id : null,
     account_id != null ? account_id : null,
     note || '',
-    date
+    date,
+    unique_key || null
   ]);
 
   const newId = getLastInsertId();
@@ -472,14 +486,14 @@ function getTodayStats(date) {
 // ─── Auto-Categorize ──────────────────────────────────────────────────────────
 
 const CATEGORY_KEYWORDS = {
-  '餐饮': ['餐饮', '美食', '餐厅', '饭', '火锅', '烧烤', '外卖', '咖啡', '奶茶', '小吃', '早餐', '午餐', '晚餐', '食堂', '酒店', '饭店', '面馆', '快餐', '烘焙', '蛋糕', '甜品', '水果', '买菜', '美团', '饿了么', '大众点评', '肯德基', '麦当劳', '汉堡王', '星巴克', '瑞幸', '喜茶', '茶百道', '蜜雪冰城', '海底捞', '呷哺', '乐购学生服务部', '乐购超市'],
+  '餐饮': ['餐饮', '餐费', '餐费支出', '美食', '餐厅', '饭', '餐', '火锅', '烧烤', '外卖', '咖啡', '奶茶', '小吃', '早餐', '午餐', '晚餐', '食堂', '酒店', '饭店', '面馆', '快餐', '烘焙', '蛋糕', '甜品', '水果', '买菜', '美团', '饿了么', '大众点评', '肯德基', '麦当劳', '汉堡王', '汉堡', '星巴克', '瑞幸', '喜茶', '茶百道', '蜜雪冰城', '古茗', '海底捞', '呷哺', '乐购学生服务部', '乐购超市', '堂食', '抹茶', '杨梅', '冰茶', '冰椰', '西瓜'],
   '交通': ['交通', '公交', '地铁', '打车', '滴滴', '出租车', '高铁', '火车', '机票', '航空', '加油', '停车', '高速', 'ETC', '曹操', 'T3出行', '花小猪', '12306', '中铁', '航旅', '充油卡'],
-  '购物': ['购物', '淘宝', '京东', '拼多多', '超市', '商场', '便利店', '服装', '天猫', '唯品会', '苏宁', '闲鱼', '盒马', '山姆', 'Costco', '大润发', '永辉', '屈臣氏', '丝芙兰', '日用品', '百货', '微信小店'],
+  '购物': ['购物', '淘宝', '京东', '拼多多', '超市', '商场', '便利店', '服装', '天猫', '唯品会', '苏宁', '闲鱼', '盒马', '山姆', 'Costco', '大润发', '永辉', '屈臣氏', '丝芙兰', '日用品', '百货', '微信小店', 'Steam', 'Valve', '小黑盒', '微信豆', '桌宠', '原神', '鸣潮', '崩铁', '金币', '长鸣珠', '盲盒', '黑胶', '迅雷', '下载券', '雷神', '抖音', 'VIP卡', 'SVIP', 'OO GAME'],
   '娱乐': ['娱乐', '电影', '游戏', '音乐', 'KTV', '演出', '门票', '旅游', '景点', '猫眼', '淘票票', 'QQ音乐', '网易云', 'B站大会员', '爱奇艺', '腾讯视频', '优酷', '迪士尼', '欢乐谷', '健身', '运动', '瑜伽'],
-  '居家': ['居家', '房租', '水电', '物业', '天然气', '煤气', '电费', '水费', '网费', '宽带', '房租', '保洁', '维修', '装修', '房产', '暖气', '固话', '中国移动', '中国联通', '中国电信'],
-  '医疗': ['医疗', '医院', '药房', '诊所', '医保', '医药', '挂号', '门诊', '住院', '手术', '体检', '牙科', '眼科', '疫苗', '中药', '西药'],
-  '学习': ['学习', '书本', '课程', '培训', '考试', '文具', '教材', '网课', '书店', '图书', '教育', '学费', '考研', '雅思', '托福'],
-  '人情': ['人情', '红包', '礼物', '礼金', '请客', '宴请', '结婚', '生日', '随礼', '份子', '礼品'],
+  '居家': ['居家', '房租', '水电', '物业', '天然气', '煤气', '电费', '水费', '网费', '宽带', '房租', '保洁', '维修', '装修', '房产', '暖气', '固话', '中国移动', '中国联通', '中国电信', '热水', '抽纸', '纸巾'],
+  '医疗': ['医疗', '医院', '药房', '诊所', '医保', '医药', '挂号', '门诊', '住院', '手术', '体检', '牙科', '眼科', '疫苗', '中药', '西药', '健康'],
+  '学习': ['学习', '书本', '课程', '培训', '考试', '文具', '教材', '网课', '书店', '图书', '教育', '学费', '考研', '雅思', '托福', '打印', '学院', '学校', 'DeepSeek', '深度求索', '云计算'],
+  '人情': ['人情', '红包', '礼物', '礼金', '请客', '宴请', '结婚', '生日', '随礼', '份子', '礼品', '转账', '二维码'],
   '宠物': ['宠物', '猫粮', '狗粮', '宠物店', '猫咪', '狗狗', '宠物医院', '驱虫', '猫砂'],
   '工资': ['工资', '薪水', '薪资', '奖金', '补贴', '津贴', '绩效', '劳动报酬'],
   '理财': ['理财', '利息', '收益', '基金', '股票', '分红', '股息', '理财通', '余额宝', '招商银行理财', '定期'],

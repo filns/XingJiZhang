@@ -167,7 +167,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('settings:set', (_, key, value) => {
-    const allowedKeys = ['app_id', 'api_key', 'secret_key', 'background_type', 'background_value'];
+    const allowedKeys = ['app_id', 'api_key', 'secret_key', 'background_type', 'background_value', 'watch_folder', 'watch_enabled'];
     assert(typeof key === 'string' && allowedKeys.includes(key),
       `Invalid setting key: ${key}`);
     assert(typeof value === 'string', 'Setting value must be a string');
@@ -182,7 +182,9 @@ function registerIpcHandlers() {
       api_key: database.getSetting('api_key'),
       secret_key: database.getSetting('secret_key'),
       background_type: database.getSetting('background_type'),
-      background_value: database.getSetting('background_value')
+      background_value: database.getSetting('background_value'),
+      watch_folder: database.getSetting('watch_folder'),
+      watch_enabled: database.getSetting('watch_enabled')
     };
   });
 
@@ -384,6 +386,140 @@ function registerIpcHandlers() {
   ipcMain.handle('import:execute', async (_, transactions) => {
     return importModule.executeImport(transactions);
   });
+
+  // ── Auto-Sync (Folder Watch) ──────────────────────────────────────────────
+
+  ipcMain.handle('watch:get-config', () => {
+    return { folder: getWatchFolder(), enabled: isWatchEnabled() };
+  });
+
+  ipcMain.handle('watch:choose-folder', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory'],
+      title: '选择账单文件夹'
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  });
+
+  ipcMain.handle('watch:set-config', (_, config) => {
+    assert(config && typeof config === 'object', 'Invalid watch config');
+    const folder = typeof config.folder === 'string' ? config.folder : '';
+    const enabled = config.enabled ? '1' : '0';
+    assert(folder.length <= 500, 'Folder path must not exceed 500 characters');
+    database.setSetting('watch_folder', folder);
+    database.setSetting('watch_enabled', enabled);
+    startWatcher();
+    return { folder: getWatchFolder(), enabled: isWatchEnabled() };
+  });
+
+  ipcMain.handle('watch:scan-now', async () => {
+    const folder = getWatchFolder();
+    if (!folder || !fs.existsSync(folder)) return { error: '未设置账单文件夹' };
+    await scanWatchFolder(folder);
+    return { ok: true };
+  });
+}
+
+// ─── Auto-Sync (Folder Watch) ──────────────────────────────────────────────
+
+const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.bmp', '.webp', '.gif'];
+const BILL_EXTS = ['.csv', '.xlsx'];
+const WATCH_INTERVAL_MS = 5000;
+let watchTimer = null;
+const processedFiles = new Map(); // "path|mtime|size" → true
+
+function getWatchFolder() {
+  return database.getSetting('watch_folder') || '';
+}
+
+function isWatchEnabled() {
+  return database.getSetting('watch_enabled') === '1';
+}
+
+function startWatcher() {
+  stopWatcher();
+  if (!isWatchEnabled()) return;
+  const folder = getWatchFolder();
+  if (!folder || !fs.existsSync(folder)) return;
+  watchTimer = setInterval(() => scanWatchFolder(folder), WATCH_INTERVAL_MS);
+}
+
+function stopWatcher() {
+  if (watchTimer) { clearInterval(watchTimer); watchTimer = null; }
+}
+
+function notifyAutoImport(payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('import:auto-result', payload);
+  }
+}
+
+async function scanWatchFolder(folder) {
+  let entries;
+  try { entries = fs.readdirSync(folder); } catch (e) { return; }
+
+  for (const name of entries) {
+    const filePath = path.join(folder, name);
+    let stat;
+    try { stat = fs.statSync(filePath); } catch (e) { continue; }
+    if (!stat.isFile()) continue;
+
+    const ext = path.extname(name).toLowerCase();
+    const isImage = IMAGE_EXTS.includes(ext);
+    const isBill = BILL_EXTS.includes(ext);
+    if (!isImage && !isBill) continue;
+
+    const key = `${filePath}|${stat.mtimeMs}|${stat.size}`;
+    if (processedFiles.has(key)) continue;
+    processedFiles.set(key, true);
+
+    try {
+      const result = isImage ? await importImageFile(filePath) : await importBillFile(filePath);
+      notifyAutoImport({ file: name, ...result });
+    } catch (err) {
+      notifyAutoImport({ file: name, error: err.message || String(err) });
+    }
+  }
+}
+
+async function importBillFile(filePath) {
+  const parsed = importModule.parseFile(filePath);
+  return importModule.executeImport(parsed.transactions);
+}
+
+async function importImageFile(filePath) {
+  const buffer = fs.readFileSync(filePath);
+  const format = detectImageFormat(buffer);
+  if (!format) throw new Error('无法识别的图片格式');
+
+  const base64 = buffer.toString('base64');
+  let ocrResult;
+  if (await ocr.isPaddleAvailable()) {
+    ocrResult = await ocr.recognizePaddle(base64);
+  } else {
+    ocrResult = await ocr.recognizeReceipt(base64);
+  }
+
+  const extracted = ocr.extractTransactionInfo(ocrResult.rawText);
+  const transactions = (extracted.transactions || []).map(t => {
+    const amount = Math.round(t.amount * 100) / 100;
+    return {
+      type: t.type,
+      amount,
+      category_id: t.category_id || null,
+      account_id: null,
+      note: t.merchant || '未知商户',
+      date: t.date,
+      unique_key: 'gen:' + [t.date, t.type, amount, t.merchant || ''].join('|'),
+    };
+  });
+
+  if (transactions.length === 0) {
+    throw new Error('未识别到可导入的交易（无法确定金额或收支类型）');
+  }
+
+  return importModule.executeImport(transactions);
 }
 
 // ─── App Lifecycle ──────────────────────────────────────────────────────────────
@@ -393,6 +529,7 @@ app.whenReady().then(async () => {
   seedApiCredentials();
   registerIpcHandlers();
   createWindow();
+  startWatcher();
 });
 
 app.on('window-all-closed', () => {

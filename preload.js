@@ -43,6 +43,13 @@ contextBridge.exposeInMainWorld('api', {
   parseImportFile: (filePath) => ipcRenderer.invoke('import:parse', filePath),
   executeImport: (transactions) => ipcRenderer.invoke('import:execute', transactions),
 
+  // Auto-Sync (folder watch)
+  getWatchConfig: () => ipcRenderer.invoke('watch:get-config'),
+  chooseWatchFolder: () => ipcRenderer.invoke('watch:choose-folder'),
+  setWatchConfig: (config) => ipcRenderer.invoke('watch:set-config', config),
+  scanWatchNow: () => ipcRenderer.invoke('watch:scan-now'),
+  onAutoImportResult: (callback) => ipcRenderer.on('import:auto-result', (_e, payload) => callback(payload)),
+
   // Dialog
   openImageDialog: () => ipcRenderer.invoke('dialog:open-image')
 });

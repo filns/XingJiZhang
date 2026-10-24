@@ -1704,7 +1704,10 @@ async function executeImportAndClose(transactions) {
       await loadTransactions();
       await loadFilterSelects();
     }
-    alert('成功导入 ' + result.imported + ' 条记录' + (result.failed > 0 ? '，' + result.failed + ' 条失败' : ''));
+    let importMsg = '成功导入 ' + result.imported + ' 条记录';
+    if (result.skippedDuplicate) importMsg += '，跳过重复 ' + result.skippedDuplicate + ' 条';
+    if (result.failed) importMsg += '，' + result.failed + ' 条失败';
+    alert(importMsg);
   } catch (err) {
     console.error('executeImportAndClose error:', err);
     alert('导入失败：' + (err.message || '未知错误'));
@@ -1723,6 +1726,79 @@ function setupImportModalListeners() {
   $('#import-close').addEventListener('click', closeImportModal);
   $('#import-overlay').addEventListener('click', e => {
     if (e.target === $('#import-overlay')) closeImportModal();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// AUTO-SYNC (Folder Watch)
+// ═══════════════════════════════════════════════════════════════════════
+
+let watchFolder = '';
+
+async function loadWatchConfig() {
+  try {
+    const cfg = await window.api.getWatchConfig();
+    watchFolder = cfg.folder || '';
+    $('#watch-folder-display').textContent = watchFolder || '未设置文件夹';
+    $('#watch-enabled-toggle').checked = !!cfg.enabled;
+  } catch (err) { console.error('loadWatchConfig error:', err); }
+}
+
+async function saveWatchConfig() {
+  await window.api.setWatchConfig({ folder: watchFolder, enabled: $('#watch-enabled-toggle').checked });
+}
+
+function setupAutoSync() {
+  loadWatchConfig();
+
+  $('#btn-watch-choose').addEventListener('click', async () => {
+    try {
+      const folder = await window.api.chooseWatchFolder();
+      if (!folder) return;
+      watchFolder = folder;
+      await saveWatchConfig();
+      await loadWatchConfig();
+    } catch (err) { console.error(err); }
+  });
+
+  $('#watch-enabled-toggle').addEventListener('change', async () => {
+    if ($('#watch-enabled-toggle').checked && !watchFolder) {
+      alert('请先选择账单文件夹');
+      $('#watch-enabled-toggle').checked = false;
+      return;
+    }
+    try { await saveWatchConfig(); } catch (err) { console.error(err); }
+  });
+
+  $('#btn-watch-scan-now').addEventListener('click', async () => {
+    if (!watchFolder) {
+      alert('请先选择账单文件夹');
+      return;
+    }
+    $('#watch-status').textContent = '扫描中...';
+    try {
+      const r = await window.api.scanWatchNow();
+      if (r && r.error) $('#watch-status').textContent = r.error;
+      else $('#watch-status').textContent = '扫描完成';
+    } catch (err) {
+      $('#watch-status').textContent = '扫描失败：' + (err.message || err);
+    }
+  });
+
+  window.api.onAutoImportResult(async (payload) => {
+    if (payload.error) {
+      $('#watch-status').textContent = '导入失败 ' + payload.file + '：' + payload.error;
+      return;
+    }
+    let msg = '已处理 ' + payload.file + '：导入 ' + payload.imported + ' 条';
+    if (payload.failed) msg += '，失败 ' + payload.failed + ' 条';
+    if (payload.skippedDuplicate) msg += '，跳过重复 ' + payload.skippedDuplicate + ' 条';
+    $('#watch-status').textContent = msg;
+    await refreshSummary();
+    if (state.currentTab === 'tab-list') {
+      await loadTransactions();
+      await loadFilterSelects();
+    }
   });
 }
 
@@ -1776,6 +1852,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupSettingsListeners();
   setupEditModalListeners();
   setupImportModalListeners();
+  setupAutoSync();
   setupKeyboardShortcuts();
 
   console.log('app initialized');
