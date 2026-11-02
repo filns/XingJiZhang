@@ -44,6 +44,32 @@
   --glass-blur-strong: 40px;
   --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
   --glass-highlight: rgba(255, 255, 255, 0.35);
+
+  /* 立体玻璃按钮：半透明底色 + 顶部高光渐变 + 上亮下暗的内描边 + 分层投影 */
+  --btn-fill: rgba(255, 255, 255, 0.45);
+  --btn-fill-hover: rgba(255, 255, 255, 0.75);
+  --btn-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 60%);
+  --btn-border: rgba(26, 26, 46, 0.1);
+  --btn-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(26, 26, 46, 0.06),
+    0 1px 2px rgba(26, 26, 46, 0.08),
+    0 3px 8px rgba(26, 26, 46, 0.06);
+  --btn-shadow-hover:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(26, 26, 46, 0.06),
+    0 2px 4px rgba(26, 26, 46, 0.1),
+    0 8px 18px rgba(26, 26, 46, 0.1);
+  --btn-shadow-pressed:
+    inset 0 2px 4px rgba(26, 26, 46, 0.14),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.8);
+  --accent-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 60%);
+  --accent-edge: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+  --accent-glow: 0 2px 6px rgba(108, 76, 224, 0.4), 0 6px 16px rgba(108, 76, 224, 0.22);
+  --expense-glow: 0 2px 6px rgba(224, 72, 90, 0.38), 0 6px 16px rgba(224, 72, 90, 0.2);
+  --income-glow: 0 2px 6px rgba(58, 168, 159, 0.38), 0 6px 16px rgba(58, 168, 159, 0.2);
+  --press-ease: transform 0.12s ease, box-shadow 0.16s ease, background-color 0.16s ease,
+                border-color 0.16s ease, color 0.16s ease;
 }
 
 /* ─── Reset & Base ───────────────────────────────────────────────────── */
@@ -110,10 +136,11 @@ body {
   color: var(--text-secondary);
   font-family: var(--font-family);
   font-size: 13px;
-  padding: 8px 16px;
+  padding: 6px 16px;
   cursor: pointer;
-  border-radius: var(--radius) var(--radius) 0 0;
-  transition: color var(--transition), background var(--transition);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  transition: var(--press-ease);
   white-space: nowrap;
   -webkit-app-region: no-drag;
   position: relative;
@@ -121,23 +148,32 @@ body {
 
 .tab:hover {
   color: var(--text-primary);
-  background: var(--glass-bg-hover);
+  background-color: var(--btn-fill-hover);
+  background-image: var(--btn-sheen);
+  border-color: var(--btn-border);
+  box-shadow: var(--btn-shadow);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
 
+.tab:active {
+  box-shadow: var(--btn-shadow-pressed);
+}
+
 .tab.active {
   color: var(--accent);
-  background: var(--glass-bg-active);
+  background-color: var(--btn-fill-hover);
+  background-image: var(--btn-sheen);
+  border-color: var(--btn-border);
+  box-shadow: var(--btn-shadow), inset 0 -2px 0 var(--accent);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border-bottom: 2px solid var(--accent);
   font-weight: 600;
 }
 
 .tab-settings {
   margin-left: auto;
-  padding: 8px 12px;
+  padding: 6px 12px;
   font-size: 16px;
   border-radius: var(--radius);
 }
@@ -188,39 +224,49 @@ body {
   border-radius: var(--radius);
   padding: 3px;
   gap: 4px;
+  box-shadow: inset 0 1px 3px rgba(26, 26, 46, 0.08), inset 0 -1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .type-btn {
   flex: 1;
   background: none;
-  border: none;
+  border: 1px solid transparent;
   color: var(--text-secondary);
   font-family: var(--font-family);
   font-size: 14px;
   font-weight: 500;
-  padding: 8px 16px;
+  padding: 7px 16px;
   border-radius: 6px;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: var(--press-ease);
 }
 
 .type-btn:hover {
   color: var(--text-primary);
-  background: var(--glass-bg-hover);
+  background-color: var(--btn-fill-hover);
+  background-image: var(--btn-sheen);
+  border-color: var(--btn-border);
+  box-shadow: var(--btn-shadow);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
 
+.type-btn:active {
+  box-shadow: var(--btn-shadow-pressed);
+}
+
 .type-btn.active.expense {
-  background: linear-gradient(135deg, rgba(255, 107, 107, 0.9), rgba(229, 90, 90, 0.9));
+  background: var(--accent-sheen), linear-gradient(135deg, rgba(255, 107, 107, 0.92), rgba(229, 90, 90, 0.92));
+  border-color: rgba(255, 255, 255, 0.3);
   color: var(--text-on-accent);
-  box-shadow: 0 2px 12px rgba(255, 107, 107, 0.3);
+  box-shadow: var(--accent-edge), var(--expense-glow);
 }
 
 .type-btn.active.income {
-  background: linear-gradient(135deg, rgba(78, 205, 196, 0.9), rgba(61, 184, 176, 0.9));
+  background: var(--accent-sheen), linear-gradient(135deg, rgba(78, 205, 196, 0.92), rgba(61, 184, 176, 0.92));
+  border-color: rgba(255, 255, 255, 0.3);
   color: #111;
-  box-shadow: 0 2px 12px rgba(78, 205, 196, 0.25);
+  box-shadow: var(--accent-edge), var(--income-glow);
 }
 
 /* ─── Amount Input ───────────────────────────────────────────────────── */
@@ -288,32 +334,40 @@ body {
 }
 
 .cat-chip {
-  background: var(--glass-bg);
+  background-color: var(--btn-fill);
+  background-image: var(--btn-sheen);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--btn-border);
   color: var(--text-primary);
   font-family: var(--font-family);
   font-size: 13px;
   padding: 6px 14px;
   border-radius: 20px;
   cursor: pointer;
-  transition: all var(--transition);
+  box-shadow: var(--btn-shadow);
+  transition: var(--press-ease);
   white-space: nowrap;
   user-select: none;
 }
 
 .cat-chip:hover {
-  background: var(--glass-bg-hover);
-  border-color: var(--glass-border-hover);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  background-color: var(--btn-fill-hover);
+  box-shadow: var(--btn-shadow-hover);
+  transform: translateY(-1px);
+}
+
+.cat-chip:active {
+  box-shadow: var(--btn-shadow-pressed);
+  transform: translateY(0);
 }
 
 .cat-chip.selected {
-  background: var(--accent);
-  border-color: var(--accent);
+  background-color: var(--accent);
+  background-image: var(--accent-sheen);
+  border-color: rgba(255, 255, 255, 0.3);
   color: var(--text-on-accent);
-  box-shadow: 0 2px 16px rgba(124, 92, 255, 0.35);
+  box-shadow: var(--accent-edge), var(--accent-glow);
 }
 
 /* ─── Form Inputs & Selects ──────────────────────────────────────────── */
@@ -382,7 +436,7 @@ body {
   background: linear-gradient(135deg, rgba(124, 92, 255, 0.85), rgba(106, 74, 232, 0.85));
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   color: var(--text-on-accent);
   font-family: var(--font-family);
   font-size: 16px;
@@ -390,9 +444,9 @@ body {
   padding: 12px 24px;
   border-radius: var(--radius);
   cursor: pointer;
-  transition: all var(--transition), transform 0.1s ease;
+  transition: var(--press-ease);
   width: 100%;
-  box-shadow: 0 4px 16px rgba(124, 92, 255, 0.25);
+  box-shadow: var(--accent-edge), var(--accent-glow);
   position: relative;
   overflow: hidden;
 }
@@ -404,74 +458,83 @@ body {
   left: 0;
   right: 0;
   height: 50%;
-  background: linear-gradient(180deg, rgba(255,255,255,0.12) 0%, transparent 100%);
+  background: linear-gradient(180deg, rgba(255,255,255,0.32) 0%, transparent 100%);
   border-radius: var(--radius) var(--radius) 50% 50%;
   pointer-events: none;
 }
 
 .btn-primary:hover {
   background: linear-gradient(135deg, rgba(124, 92, 255, 0.95), rgba(106, 74, 232, 0.95));
-  box-shadow: 0 6px 24px rgba(124, 92, 255, 0.4);
+  box-shadow: var(--accent-edge), 0 4px 10px rgba(108, 76, 224, 0.42), 0 10px 24px rgba(108, 76, 224, 0.26);
   transform: translateY(-1px);
 }
 
 .btn-primary:active {
-  transform: scale(0.98);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.22), 0 1px 3px rgba(108, 76, 224, 0.3);
+  transform: translateY(0) scale(0.99);
 }
 
 .expense-btn {
   background: linear-gradient(135deg, rgba(255, 107, 107, 0.85), rgba(229, 90, 90, 0.85));
-  box-shadow: 0 4px 16px rgba(255, 107, 107, 0.25);
+  box-shadow: var(--accent-edge), var(--expense-glow);
 }
 
 .expense-btn:hover {
   background: linear-gradient(135deg, rgba(255, 107, 107, 0.95), rgba(229, 90, 90, 0.95));
-  box-shadow: 0 6px 24px rgba(255, 107, 107, 0.4);
+  box-shadow: var(--accent-edge), 0 4px 10px rgba(224, 72, 90, 0.4), 0 10px 24px rgba(224, 72, 90, 0.24);
 }
 
 .income-btn {
   background: linear-gradient(135deg, rgba(78, 205, 196, 0.85), rgba(61, 184, 176, 0.85));
   color: #111;
-  box-shadow: 0 4px 16px rgba(78, 205, 196, 0.25);
+  box-shadow: var(--accent-edge), var(--income-glow);
 }
 
 .income-btn:hover {
   background: linear-gradient(135deg, rgba(78, 205, 196, 0.95), rgba(61, 184, 176, 0.95));
-  box-shadow: 0 6px 24px rgba(78, 205, 196, 0.4);
+  box-shadow: var(--accent-edge), 0 4px 10px rgba(58, 168, 159, 0.4), 0 10px 24px rgba(58, 168, 159, 0.24);
 }
 
 .btn-small {
-  background: var(--glass-bg);
+  background-color: var(--btn-fill);
+  background-image: var(--btn-sheen);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--btn-border);
   color: var(--text-primary);
   font-family: var(--font-family);
   font-size: 12px;
   padding: 6px 12px;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   cursor: pointer;
-  transition: all var(--transition);
+  box-shadow: var(--btn-shadow);
+  transition: var(--press-ease);
   white-space: nowrap;
 }
 
 .btn-small:hover {
-  background: var(--glass-bg-hover);
-  border-color: var(--glass-border-hover);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  background-color: var(--btn-fill-hover);
+  box-shadow: var(--btn-shadow-hover);
+  transform: translateY(-1px);
+}
+
+.btn-small:active {
+  box-shadow: var(--btn-shadow-pressed);
+  transform: translateY(0);
 }
 
 .btn-small.danger {
   color: var(--danger);
-  border-color: rgba(255, 71, 87, 0.35);
-  background: rgba(255, 71, 87, 0.08);
+  border-color: rgba(255, 71, 87, 0.3);
+  background-color: rgba(255, 71, 87, 0.08);
 }
 
 .btn-small.danger:hover {
-  background: var(--danger);
+  background-color: var(--danger);
+  background-image: var(--accent-sheen);
   color: #fff;
-  border-color: var(--danger);
-  box-shadow: 0 4px 14px rgba(255, 71, 87, 0.3);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: var(--accent-edge), 0 2px 6px rgba(232, 56, 74, 0.4), 0 6px 16px rgba(232, 56, 74, 0.22);
 }
 
 /* ─── Summary Cards (side panel) ─────────────────────────────────────── */
@@ -579,32 +642,40 @@ body {
 }
 
 .filter-chip {
-  background: var(--glass-bg);
+  background-color: var(--btn-fill);
+  background-image: var(--btn-sheen);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--btn-border);
   color: var(--text-secondary);
   font-family: var(--font-family);
   font-size: 12px;
   padding: 4px 12px;
   border-radius: 14px;
   cursor: pointer;
-  transition: all var(--transition);
+  box-shadow: var(--btn-shadow);
+  transition: var(--press-ease);
   white-space: nowrap;
 }
 
 .filter-chip:hover {
   color: var(--text-primary);
-  border-color: var(--glass-border-hover);
-  background: var(--glass-bg-hover);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background-color: var(--btn-fill-hover);
+  box-shadow: var(--btn-shadow-hover);
+  transform: translateY(-1px);
+}
+
+.filter-chip:active {
+  box-shadow: var(--btn-shadow-pressed);
+  transform: translateY(0);
 }
 
 .filter-chip.active {
-  background: var(--accent);
-  border-color: var(--accent);
+  background-color: var(--accent);
+  background-image: var(--accent-sheen);
+  border-color: rgba(255, 255, 255, 0.3);
   color: var(--text-on-accent);
-  box-shadow: 0 2px 12px rgba(124, 92, 255, 0.3);
+  box-shadow: var(--accent-edge), var(--accent-glow);
 }
 
 .filter-select {
@@ -1191,17 +1262,22 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition);
+  border-radius: 6px;
+  transition: var(--press-ease);
   line-height: 1;
 }
 
 .modal-close:hover {
-  background: var(--glass-bg-hover);
+  background-color: var(--btn-fill-hover);
+  background-image: var(--btn-sheen);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   color: var(--text-primary);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--btn-shadow);
+}
+
+.modal-close:active {
+  box-shadow: var(--btn-shadow-pressed);
 }
 
 .modal-body {
@@ -1335,16 +1411,21 @@ body {
   cursor: pointer;
   padding: 2px 4px;
   border-radius: var(--radius-sm);
-  transition: all var(--transition);
+  transition: var(--press-ease);
   line-height: 1;
 }
 
 .btn-icon:hover {
   color: var(--text-primary);
-  background: var(--glass-bg-hover);
+  background-color: var(--btn-fill-hover);
+  background-image: var(--btn-sheen);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--btn-shadow);
+}
+
+.btn-icon:active {
+  box-shadow: var(--btn-shadow-pressed);
 }
 
 .btn-icon.edit:hover {
