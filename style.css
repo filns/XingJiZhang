@@ -1214,18 +1214,18 @@ body {
 }
 
 .modal {
-  background: rgba(26, 26, 50, 0.7);
+  background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(var(--glass-blur-strong));
   -webkit-backdrop-filter: blur(var(--glass-blur-strong));
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
+  border: 1px solid rgba(26, 26, 46, 0.08);
+  border-radius: 12px;
   width: 560px;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08),
-              inset 0 1px 0 rgba(255, 255, 255, 0.7),
-              inset 0 -1px 0 rgba(0, 0, 0, 0.04);
+  box-shadow: 0 16px 40px rgba(26, 26, 46, 0.14),
+              0 2px 8px rgba(26, 26, 46, 0.06),
+              inset 0 1px 0 rgba(255, 255, 255, 1);
 }
 
 .modal-edit {
