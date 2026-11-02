@@ -14,6 +14,10 @@
     "directories": {
       "output": "dist"
     },
+    "files": [
+      "**/*",
+      "!secrets.json"
+    ],
     "win": {
       "target": "nsis",
       "icon": "assets/icon.ico"
@@ -22,10 +26,6 @@
       {
         "from": "assets/icon.ico",
         "to": "icon.ico"
-      },
-      {
-        "from": "secrets.json",
-        "to": "secrets.json"
       }
     ],
     "nsis": {
